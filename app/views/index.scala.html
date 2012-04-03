@@ -1,0 +1,28 @@
+
+@main(null) {
+    
+    @if(flash.containsKey("error")) {
+        
+        <div class="alert-message error">
+            <p>
+                <strong>Oops!</strong> @flash.get("error")
+            </p>
+        </div>
+        
+    }
+        
+    <div class="alert-message block-message info">
+        <p>
+            <strong>Reversi Enter</strong> 
+        </p>
+    </div>
+    <form action="@routes.Application.reversi()">
+        <select name="username">
+            <option>選択してください</option>
+            <option value="black">黒</option>
+            <option value="white">白</option>
+        </select>
+        <button class="btn" type="submit">Sign in</button>
+    </form>
+    
+}

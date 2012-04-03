@@ -1,0 +1,226 @@
+@(username: String)
+@main(username) {
+    
+    <div class="page-header">
+        @if(username != null) {
+            <p>
+                Logged in as @username —
+                <a href="@routes.Application.index()">Disconnect</a>
+            </p>
+        }
+    </div>
+    
+    <div id="onError" class="alert-message error">
+        <p>
+            <strong>Oops!</strong> <span></span>
+        </p>
+    </div>
+
+    <div>
+        <table id="reversiBoard">
+            <tr>
+                <td id="1_1"></td>
+                <td id="1_2"></td>
+                <td id="1_3"></td>
+                <td id="1_4"></td>
+                <td id="1_5"></td>
+                <td id="1_6"></td>
+            </tr>
+            <tr>
+                <td id="2_1"></td>
+                <td id="2_2"></td>
+                <td id="2_3"></td>
+                <td id="2_4"></td>
+                <td id="2_5"></td>
+                <td id="2_6"></td>
+            </tr>
+            <tr>
+                <td id="3_1"></td>
+                <td id="3_2"></td>
+                <td id="3_3" class="white"></td>
+                <td id="3_4" class="black"></td>
+                <td id="3_5"></td>
+                <td id="3_6"></td>
+            </tr>
+            <tr>
+                <td id="4_1"></td>
+                <td id="4_2"></td>
+                <td id="4_3" class="black"></td>
+                <td id="4_4" class="white"></td>
+                <td id="4_5"></td>
+                <td id="4_6"></td>
+            </tr>
+            <tr>
+                <td id="5_1"></td>
+                <td id="5_2"></td>
+                <td id="5_3"></td>
+                <td id="5_4"></td>
+                <td id="5_5"></td>
+                <td id="5_6"></td>
+            </tr>
+            <tr>
+                <td id="6_1"></td>
+                <td id="6_2"></td>
+                <td id="6_3"></td>
+                <td id="6_4"></td>
+                <td id="6_5"></td>
+                <td id="6_6"></td>
+            </tr>
+        </table>
+    </div>
+    
+    <div id="onChat" class="">
+        <div class="" id="main">
+            <h2>Game</h2>
+            <div id="messages">
+            </div>
+            <p><label for="talk">Message : </label><input id="talk" type=text name="message" /></p>
+            <p><label for="x">X : </label><input id="x" type=text name="x" /></p>
+            <p><label for="y">Y : </label><input id="y" type=text name="y" /></p>
+            <p><label for="uuid">UUID : </label><input id="uuid" type=text name="uuid" /></p>
+        </div>
+        <div class="">
+            <h2>Players</h2>
+            <ul id="members">
+            </ul>
+        </div>
+    </div>
+    
+    <script type="text/javascript">
+    
+        $(function() {
+            var WS = window['MozWebSocket'] ? MozWebSocket : WebSocket
+	        var chatSocket = new WS("@routes.Application.game(username).webSocketURL(request)")
+            
+            var sendMessage = function() {
+                chatSocket.send(JSON.stringify(
+                    {
+                        text: $("#talk").val(),
+                        x : $("#x").val(),
+                        y : $("#y").val(),
+                        uuid : $("#uuid").val()
+                    }
+                ))
+                $("#talk").val('')
+                $("#x").val('')
+                $("#y").val('')
+                $("#uuid").val('')
+            }
+            
+            var receiveEvent = function(event) {
+                var data = JSON.parse(event.data)
+                
+                // Handle errors
+                if(data.error) {
+                    chatSocket.close()
+                    $("#onError span").text(data.error)
+                    $("#onError").show()
+                    return
+                } else {
+                    $("#onChat").show()
+                }
+                
+                // Create the message element
+                if (data.kind == 'talk') {
+                    $('#' + data.uuid).removeClass('thinkOver');
+                    $('#' + data.uuid).removeClass('thinkOut');
+                    if(data.message == 'black') {
+                        $('#' + data.uuid).removeClass('white');
+                    } else if (data.message == 'white') {
+                        $('#' + data.uuid).removeClass('black');
+                    }
+                    $('#' + data.uuid).addClass(data.message);
+
+                    //var el = $('<div class="message"><span></span><p></p></div>')
+                    //$("span", el).text(data.user)
+                    //$("p", el).text(data.message + " : " + data.x + " : " + data.y + " : " + data.uuid)
+                    //$(el).addClass(data.kind)
+                    //$(el).attr('id', data.uuid);
+                    //if(data.user == '@username') $(el).addClass('me')
+                    //$('#messages').append(el)
+                }
+                
+                // Update the members list
+                $("#members").html('') 
+                $(data.members).each(function() {
+                    $("#members").append('<li>' + this + '</li>')
+                })
+                
+                $( ".message" ).draggable({
+                    stop: function(e, ui) {
+                        //alert(' top: ' + ui.position.top + ' left: ' + ui.position.left);
+                        //alert($(this).attr('id'));
+                        chatSocket.send(JSON.stringify(
+                            {
+                                text: $(this).find("p").text(),
+                                x : ui.position.top,
+                                y : ui.position.left,
+                                uuid : $(this).attr('id')
+                            }
+                        ))
+                    }});
+
+            }
+            
+            var handleReturnKey = function(e) {
+                if(e.charCode == 13 || e.keyCode == 13) {
+                    e.preventDefault()
+                    sendMessage()
+                } 
+            }
+            $('#reversiBoard td').mouseover(
+                function(e) {
+                var xy = getXYfromId($(this).attr('id'));
+                chatSocket.send(JSON.stringify(
+                    {
+                        text: 'thinkOver',
+                        x : xy[1],
+                        y : xy[0],
+                        uuid : $(this).attr('id')
+                    }
+                ))
+            });
+            $('#reversiBoard td').mouseout(function(e) {
+                var xy = getXYfromId($(this).attr('id'));
+                chatSocket.send(JSON.stringify(
+                    {
+                        text: 'thinkOut',
+                        x : xy[1],
+                        y : xy[0],
+                        uuid : $(this).attr('id')
+                    }
+                ))
+            });
+            $('#reversiBoard td').click(function(e) {
+                var xy = getXYfromId($(this).attr('id'));
+                chatSocket.send(JSON.stringify(
+                    {
+                        text: '@username',
+                        x : xy[1],
+                        y : xy[0],
+                        uuid : $(this).attr('id')
+                    }
+                ))
+            });
+
+            //
+            // idからx軸（xy[1]）とy軸（xy[0]）を取得
+            //
+            var getXYfromId = function(id) {
+                var xy = id.split('_');
+                return xy;
+            }
+            
+            $("#talk").keypress(handleReturnKey)  
+            $("#x").keypress(handleReturnKey)  
+            $("#y").keypress(handleReturnKey)  
+            $("#uuid").keypress(handleReturnKey)  
+            
+            chatSocket.onmessage = receiveEvent
+            
+            
+        })
+    
+    </script>
+    
+}
